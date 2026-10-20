@@ -1,7 +1,7 @@
 """Plot training curves of the RL / stable-RL algorithms.
 
 Reads data/<env>/<algo>[/<scaling tag>]/seed_*/{returns,steps}.npy as written by the scripts in
-algortihms/, and plots the mean episodic reward across seeds (line) with a +/- one standard
+algorithms/, and plots the mean episodic reward across seeds (line) with a +/- one standard
 deviation band against training steps.
 
 Two modes:
@@ -41,8 +41,9 @@ ALGO_NAMES = {
     "clean_ppo": "PPO",
     "clean_lppo": "LPPO",
     "clean_ly": "LY",
+    "clean_ly_subset": "Subset LY",
 }
-ALGO_ORDER = ["clean_sac", "clean_ppo", "clean_ly", "clean_lsac", "clean_lppo"]
+ALGO_ORDER = ["clean_sac", "clean_ppo", "clean_ly", "clean_lsac", "clean_lppo", "clean_ly_subset"]
 SWEEP_METHODS = ["min_lie", "regularization"]
 METHOD_NAMES = {"min_lie": "min Lie", "regularization": "regularized"}
 

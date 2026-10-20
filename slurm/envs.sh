@@ -26,8 +26,22 @@ case "$ENV" in
         ON_STEPS=15000000
         ON_ARGS="--num-envs 8 --ent-coef 0.001"
         ;;
+    hopper)
+        ENV_ID=Hopper-v5
+        EQ_ARGS=""  # full-state equilibrium is not meaningful here; clean_ly_subset stabilizes the joint angles
+        OFF_STEPS=1000000
+        ON_STEPS=1000000
+        ON_ARGS=""
+        ;;
+    walker)
+        ENV_ID=Walker2d-v5
+        EQ_ARGS=""
+        OFF_STEPS=1000000
+        ON_STEPS=1000000
+        ON_ARGS=""
+        ;;
     *)
-        echo "Unknown environment '$ENV' (use pendulum, double or quad)"
+        echo "Unknown environment '$ENV' (use pendulum, double, quad, hopper or walker)"
         exit 1
         ;;
 esac
