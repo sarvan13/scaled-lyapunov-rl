@@ -285,6 +285,9 @@ if __name__ == "__main__":
                         avg_reward = np.mean(episode_rewards[-50:])
                         print(f"Episodes Completed={episode_count}, Average Reward={avg_reward}")
                         writer.add_scalar("charts/episode_return", np.mean(episode_rewards), episode_count)
+                        if args.save_model:
+                            np.save(os.path.join(data_path, "returns.npy"), np.array(episode_rewards))
+                            np.save(os.path.join(data_path, "steps.npy"), np.array(episode_steps))
 
                         if avg_reward > max_reward:
                             max_reward = avg_reward

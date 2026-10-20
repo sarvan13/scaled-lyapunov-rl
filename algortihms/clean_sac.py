@@ -267,6 +267,9 @@ poetry run pip install "stable_baselines3==2.0.0a1"
                     avg_reward = np.mean(episode_rewards[-50:])
                     print(f"Episodes Completed={episode_count}, Average Reward={avg_reward}, Global Step={(global_step + 1) * args.num_envs}, Time={time.time() - start_time:.0f}")
                     writer.add_scalar("charts/episode_return", avg_reward, episode_count)
+                    if args.save_model:
+                        np.save(os.path.join(data_path, "returns.npy"), np.array(episode_rewards))
+                        np.save(os.path.join(data_path, "steps.npy"), np.array(episode_steps))
 
                     if avg_reward > max_reward:
                         max_reward = avg_reward

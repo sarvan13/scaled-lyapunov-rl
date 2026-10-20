@@ -74,6 +74,8 @@ class Args:
     """Lyapunov scaling method: none | min_lie | regularization | structural"""
     scaling_mu: float = 0.1
     """mu hyperparameter: minimum Lie derivative (min_lie) or regularization weight (regularization); unused otherwise"""
+    structural_eps: float = 1e-3
+    """epsilon in P = A^T A + eps I for the structural method (keeps the quadratic term positive definite)"""
     eq_obs: Optional[Tuple[float, ...]] = None
     """equilibrium observation (defaults to all zeros)"""
 
@@ -220,6 +222,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         envs.single_observation_space.shape[0],
         envs.single_action_space.shape[0],
         structural=args.scaling_method == "structural",
+        eps=args.structural_eps,
     ).to(device)
     margin = lie_margin(args.scaling_method, args.scaling_mu)
     eq_state = torch.zeros((1, envs.single_observation_space.shape[0]), dtype=torch.float, device=device)
@@ -291,6 +294,9 @@ poetry run pip install "stable_baselines3==2.0.0a1"
                     avg_reward = np.mean(episode_rewards[-50:])
                     print(f"Episodes Completed={episode_count}, Average Reward={avg_reward}, Global Step={(global_step + 1) * args.num_envs}, Time={time.time() - start_time:.0f}")
                     writer.add_scalar("charts/episode_return", avg_reward, episode_count)
+                    if args.save_model:
+                        np.save(os.path.join(data_path, "returns.npy"), np.array(episode_rewards))
+                        np.save(os.path.join(data_path, "steps.npy"), np.array(episode_steps))
 
                     if avg_reward > max_reward:
                         max_reward = avg_reward

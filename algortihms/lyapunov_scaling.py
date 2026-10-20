@@ -6,8 +6,8 @@ can switch between them from the command line:
     none            Eq. (2.1): unscaled Lyapunov risk (equivalent to min_lie / regularization with mu = 0)
     min_lie         Method 1, Eq. (3.2)-(3.4): enforce a minimum Lie derivative, L_dot <= -mu
     regularization  Method 2, Eq. (3.6): add mu * (L(x, u) - ||x||^2)^2 to the Lyapunov risk
-    structural      Method 3, Eq. (3.7)-(3.8): L(x, u) = x^T A x + (g(x, u) - g(0, u(0)))^2, trained only on
-                    the decreasing condition
+    structural      Method 3, Eq. (3.7)-(3.8): L(x, u) = x^T P x + (g(x, u) - g(0, u(0)))^2 with
+                    P = A^T A + eps I, trained only on the decreasing condition
 
 States are measured relative to the equilibrium state, so `x` above is `state - eq_state`. For the
 state-only Lyapunov function used by clean_ly, pass `action_dim=0` and omit the actions.
@@ -23,7 +23,7 @@ ScalingMethod = Literal["none", "min_lie", "regularization", "structural"]
 
 
 class LyapunovNet(nn.Module):
-    def __init__(self, state_dim, action_dim, lr=3e-4, fc1_dims=256, fc2_dims=256, structural=False):
+    def __init__(self, state_dim, action_dim, lr=3e-4, fc1_dims=256, fc2_dims=256, structural=False, eps=1e-3):
         super().__init__()
         self.structural = structural
         self.g = nn.Sequential(
@@ -34,8 +34,9 @@ class LyapunovNet(nn.Module):
             nn.Linear(fc2_dims, 1),
         )
         if structural:
-            # A = M M^T is positive semi-definite by construction
-            self.M = nn.Parameter(torch.eye(state_dim))
+            # P = A^T A + eps I is positive definite, so the quadratic term cannot collapse to zero
+            self.A = nn.Parameter(torch.randn(state_dim, state_dim) * 0.1)
+            self.eps = eps
 
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
 
@@ -50,8 +51,8 @@ class LyapunovNet(nn.Module):
 
         # Eq. (3.7): zero at (eq_state, eq_action) and positive everywhere else by construction
         dx = state - eq_state
-        A = self.M @ self.M.T
-        quad = ((dx @ A) * dx).sum(dim=1, keepdim=True)
+        P = self.A.T @ self.A + self.eps * torch.eye(self.A.shape[0], dtype=dx.dtype, device=dx.device)
+        quad = ((dx @ P) * dx).sum(dim=1, keepdim=True)
         g_eq = self._g(eq_state, eq_action)
         return quad + (self._g(state, action) - g_eq) ** 2
 

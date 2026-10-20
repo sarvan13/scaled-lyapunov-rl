@@ -12,7 +12,7 @@ import torch.optim as optim
 import tyro
 from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
-from typing import Callable
+from typing import Callable, Optional, Tuple
 from collections import deque
 from gymnasium.wrappers import NormalizeObservation
 
@@ -89,6 +89,10 @@ class Args:
     """Lyapunov scaling method: none | min_lie | regularization | structural"""
     scaling_mu: float = 0.1
     """mu hyperparameter: minimum Lie derivative (min_lie) or regularization weight (regularization); unused otherwise"""
+    structural_eps: float = 1e-3
+    """epsilon in P = A^T A + eps I for the structural method (keeps the quadratic term positive definite)"""
+    eq_obs: Optional[Tuple[float, ...]] = None
+    """equilibrium observation before normalization (defaults to all zeros)"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -239,6 +243,7 @@ if __name__ == "__main__":
         fc1_dims=64,
         fc2_dims=64,
         structural=args.scaling_method == "structural",
+        eps=args.structural_eps,
     ).to(device)
     margin = lie_margin(args.scaling_method, args.scaling_mu)
     dt = envs.envs[0].unwrapped.dt
@@ -311,6 +316,9 @@ if __name__ == "__main__":
                         avg_reward = np.mean(episode_rewards[-50:])
                         print(f"Episodes Completed={episode_count}, Average Reward={avg_reward}")
                         writer.add_scalar("charts/episode_return", np.mean(episode_rewards), episode_count)
+                        if args.save_model:
+                            np.save(os.path.join(data_path, "returns.npy"), np.array(episode_rewards))
+                            np.save(os.path.join(data_path, "steps.npy"), np.array(episode_steps))
 
                         if avg_reward > max_reward:
                             max_reward = avg_reward
@@ -382,7 +390,7 @@ if __name__ == "__main__":
                 break
             env = env.env
 
-        eq_obs_raw = np.zeros(envs.single_observation_space.shape[0])
+        eq_obs_raw = np.zeros(envs.single_observation_space.shape[0]) if args.eq_obs is None else np.array(args.eq_obs)
         eq_obs = (eq_obs_raw  - mean) / np.sqrt(var + epsilon)
         eq_obs = torch.tensor(eq_obs, dtype=torch.float).to(device)
         eq_obs = eq_obs.unsqueeze(0)

@@ -13,30 +13,16 @@
 #   sbatch slurm/queue_lsac.sh pendulum min_lie 0.1
 #   sbatch slurm/queue_lsac.sh double regularization 0.01
 #   sbatch slurm/queue_lsac.sh double structural
-#   sbatch slurm/queue_lsac.sh pendulum none
 ENV=${1:-pendulum}
 METHOD=${2:-min_lie}
 MU=${3:-0.1}
-
-case "$ENV" in
-    pendulum)
-        ENV_ID=InvertedPendulum-v5
-        EQ_ARGS=""  # obs = [x, theta, v, omega]; upright is all zeros
-        ;;
-    double)
-        ENV_ID=InvertedDoublePendulum-v5
-        EQ_ARGS="--eq-obs 0 0 0 1 1 0 0 0 0"  # obs = [x, sin t1, sin t2, cos t1, cos t2, v, w1, w2, F_c]
-        ;;
-    *)
-        echo "Unknown environment '$ENV' (use pendulum or double)"
-        exit 1
-        ;;
-esac
 
 cd ~/projects/def-danielac/sarvan13/scaled-lyapunov-rl
 module purge
 module load python/3.10.13
 module load mujoco
 source ~/MujocoENV/bin/activate
+source slurm/envs.sh
+if [ -z "$OFF_STEPS" ]; then echo "SAC/LSAC are not configured for $ENV"; exit 1; fi
 
-python algorithms/clean_lsac.py --env-id $ENV_ID $EQ_ARGS --save-model --total-timesteps 500000 --seed $SLURM_ARRAY_TASK_ID --scaling-method $METHOD --scaling-mu $MU
+python algorithms/clean_lsac.py --env-id $ENV_ID $EQ_ARGS --save-model --total-timesteps $OFF_STEPS --seed $SLURM_ARRAY_TASK_ID --scaling-method $METHOD --scaling-mu $MU

@@ -12,25 +12,12 @@
 # Usage: sbatch slurm/queue_sac.sh <pendulum|double>
 ENV=${1:-pendulum}
 
-case "$ENV" in
-    pendulum)
-        ENV_ID=InvertedPendulum-v5
-        EQ_ARGS=""  # obs = [x, theta, v, omega]; upright is all zeros
-        ;;
-    double)
-        ENV_ID=InvertedDoublePendulum-v5
-        EQ_ARGS="--eq-obs 0 0 0 1 1 0 0 0 0"  # obs = [x, sin t1, sin t2, cos t1, cos t2, v, w1, w2, F_c]
-        ;;
-    *)
-        echo "Unknown environment '$ENV' (use pendulum or double)"
-        exit 1
-        ;;
-esac
-
 cd ~/projects/def-danielac/sarvan13/scaled-lyapunov-rl
 module purge
 module load python/3.10.13
 module load mujoco
 source ~/MujocoENV/bin/activate
+source slurm/envs.sh
+if [ -z "$OFF_STEPS" ]; then echo "SAC/LSAC are not configured for $ENV"; exit 1; fi
 
-python algorithms/clean_sac.py --env-id $ENV_ID --save-model --total-timesteps 500000 --seed $SLURM_ARRAY_TASK_ID
+python algorithms/clean_sac.py --env-id $ENV_ID --save-model --total-timesteps $OFF_STEPS --seed $SLURM_ARRAY_TASK_ID
