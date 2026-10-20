@@ -1,5 +1,4 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/sac/#sac_continuous_actionpy
-from collections import deque
 import os
 import random
 import time
@@ -187,6 +186,10 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
+    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_path = os.path.join(project_dir, "data", args.env_id, "clean_sac", "seed_" + str(args.seed))
+    os.makedirs(data_path, exist_ok=True)
+
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -232,8 +235,10 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         handle_timeout_termination=False,
     )
 
-    episode_rewards = deque(maxlen=50)
+    episode_rewards = []
+    episode_steps = []
     episode_count = 0
+    max_reward = -np.inf
 
     start_time = time.time()
 
@@ -253,16 +258,23 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         next_done = np.logical_or(terminations, truncations)
 
         for i, done in enumerate(next_done):
-                if done:
-                    episode_return = infos["episode"]["r"][i]
-                    episode_rewards.append(episode_return)  # Store final reward
-                    episode_count += 1
-                    episode_len = infos["episode"]["l"][i]
-                    print(f"Episodes Completed={episode_count}, Average Reward={np.mean(episode_rewards)}, Global Step={global_step}, Last Length={episode_len}, Time={time.time() - start_time}")
+            if done:
+                episode_rewards.append(infos["episode"]["r"][i])
+                episode_steps.append((global_step + 1) * args.num_envs)
+                episode_count += 1
 
-                    if episode_count % 50 == 0:
-                        print(f"Episodes Completed={episode_count}, Average Reward={np.mean(episode_rewards)}, Global Step={global_step}, Last Length={episode_len}, Time={time.time() - start_time}")
-                        writer.add_scalar("charts/episode_return", np.mean(episode_rewards), episode_count)
+                if episode_count % 50 == 0:
+                    avg_reward = np.mean(episode_rewards[-50:])
+                    print(f"Episodes Completed={episode_count}, Average Reward={avg_reward}, Global Step={(global_step + 1) * args.num_envs}, Time={time.time() - start_time:.0f}")
+                    writer.add_scalar("charts/episode_return", avg_reward, episode_count)
+
+                    if avg_reward > max_reward:
+                        max_reward = avg_reward
+                        if args.save_model:
+                            torch.save(actor.state_dict(), os.path.join(data_path, f"{args.exp_name}.cleanrl_model.pth"))
+                            torch.save(qf1.state_dict(), os.path.join(data_path, "qf1.pth"))
+                            torch.save(qf2.state_dict(), os.path.join(data_path, "qf2.pth"))
+                            print("Saving model...")
 
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
@@ -357,11 +369,10 @@ poetry run pip install "stable_baselines3==2.0.0a1"
                     writer.add_scalar("losses/alpha_loss", alpha_loss.item(), global_step)
 
     if args.save_model:
-        model_path = f"runs/{run_name}/{args.exp_name}.sac_actor"
-        torch.save(actor.state_dict(), model_path)
-        torch.save(qf1.state_dict(), model_path.replace(".sac_actor", ".sac_q1"))
-        torch.save(qf2.state_dict(), model_path.replace(".sac_actor", ".sac_q2"))
-        print(f"model saved to {model_path}")
-    
+        np.save(os.path.join(data_path, "returns.npy"), np.array(episode_rewards))
+        np.save(os.path.join(data_path, "steps.npy"), np.array(episode_steps))
+        print(f"Saved model to {data_path}")
+        print(f"Best episodic return: {max_reward}")
+
     envs.close()
     writer.close()
