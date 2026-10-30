@@ -81,8 +81,8 @@ class Args:
     """the maximum norm for the gradient clipping"""
     target_kl: float = None
     """the target KL divergence threshold"""
-    lyapunov_weight: float = 10.0
-    """Beta value of Lyapunov Lagrange Multiplier"""
+    lyapunov_weight: float = 0.5
+    """fixed Lyapunov weight used in the LPPO advantage correction"""
 
     # Lyapunov scaling arguments (thesis Chapter 3.1)
     scaling_method: ScalingMethod = "min_lie"
@@ -157,6 +157,7 @@ class Agent(nn.Module):
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(x)
+
 
 def evaluate(
     model_path: str,
@@ -248,9 +249,7 @@ if __name__ == "__main__":
     margin = lie_margin(args.scaling_method, args.scaling_mu)
     dt = envs.envs[0].unwrapped.dt
 
-    log_beta = nn.Parameter(torch.log(torch.tensor([args.lyapunov_weight], dtype=torch.float, device=device)))
-    beta_optimizer = optim.Adam([log_beta], lr=3e-4)
-    beta = torch.exp(log_beta.detach())
+    beta = torch.tensor(0.5, dtype=torch.float32, device=device)
 
     # ALGO Logic: Storage setup
     obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
@@ -274,7 +273,7 @@ if __name__ == "__main__":
     max_reward = -np.inf
     beta_arr = []
     beta_arr.append(beta.item())
- 
+  
 
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
@@ -476,16 +475,6 @@ if __name__ == "__main__":
                 loss.backward()
                 nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
                 optimizer.step()
-
-                log_beta_loss = -log_beta * l_diff.mean()
-                beta_optimizer.zero_grad()
-                log_beta_loss.backward()
-                beta_optimizer.step()
-
-                beta = torch.exp(log_beta.detach())
-                beta_arr.append(beta.item())
-
-
 
             if args.target_kl is not None and approx_kl > args.target_kl:
                 break
