@@ -3,8 +3,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16
 #SBATCH --time=10:00:0
-#SBATCH --mail-user=sarvan13@uvic.ca
-#SBATCH --mail-type=ALL
+#SBATCH --mail-user=ssg57@sfu.ca
+#SBATCH --mail-type=END
 #SBATCH --account=def-danielac
 #SBATCH --gpus-per-node=1
 #SBATCH --array=1-10
