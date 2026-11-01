@@ -1,0 +1,20 @@
+name: scaled-lyapunov-rl
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      # CPU-only PyTorch (no NVIDIA GPU locally); drop this line on a CUDA machine
+      - --extra-index-url https://download.pytorch.org/whl/cpu
+      - torch
+      - gymnasium[mujoco]>=1.0
+      - mujoco>=3.0
+      - numpy
+      - tyro
+      - tensorboard
+      - stable-baselines3>=2.0
+      - matplotlib
+      - moviepy
+      - wandb
+      - -e .

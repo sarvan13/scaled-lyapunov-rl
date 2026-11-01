@@ -249,7 +249,7 @@ if __name__ == "__main__":
     margin = lie_margin(args.scaling_method, args.scaling_mu)
     dt = envs.envs[0].unwrapped.dt
 
-    beta = torch.tensor(0.5, dtype=torch.float32, device=device)
+    beta = torch.tensor(args.lyapunov_weight, dtype=torch.float32, device=device)
 
     # ALGO Logic: Storage setup
     obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)

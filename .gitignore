@@ -1,2 +1,26 @@
-data/*
-plots/*
+# Experiment outputs
+data/
+plots/
+runs/
+videos/
+wandb/
+
+# Slurm logs (default slurm-<jobid>.out in the submit directory)
+slurm-*.out
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
