@@ -18,7 +18,9 @@ METHOD=${2:-none}
 MU=${3:-0.0}
 
 
-cd ~/projects/def-danielac/sarvan13/scaled-lyapunov-rl
+# Code to run (override with: REPO=/path sbatch ...; sbatch passes the variable through)
+REPO=${REPO:-$HOME/projects/def-danielac/sarvan13/stable-lppo/scaled-lyapunov-rl}
+cd "$REPO" || { echo "REPO not found: $REPO"; exit 1; }
 module purge
 module load python/3.10.13
 module load mujoco

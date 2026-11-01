@@ -7,20 +7,27 @@ deviation band against training steps.
 Two modes:
 
 1. Parameter sweeps (--sweep): one plot per environment / algorithm / scaling method, showing every
-   mu that was run plus the unscaled run (scaling method "none") as mu = 0. The printed table is
+   mu that was run plus the unscaled run (scaling method "none") as mu = 0. Structural scaling has no
+   mu, so its plot is structural vs the unscaled run. The printed table is
    sorted by final reward, with the run key to paste into --include for the comparison plot.
 
     python plotting/plot_rewards.py --sweep                                   # every sweep found in data/
     python plotting/plot_rewards.py --sweep --env Pendulum-v1 --algo lsac --method min_lie
 
-2. Comparison (default): the runs given to --include, in that order (which also fixes their colors).
+2. Best per algorithm (--best): each Lyapunov algorithm's best scaled run (any method / mu, ranked by
+   final reward) against the unscaled baselines (PPO unless --baselines says otherwise).
+
+    python plotting/plot_rewards.py --best --env Quadrotor-Still-v1 Hopper-v5
+
+3. Comparison (default): the runs given to --include, in that order (which also fixes their colors).
    Run keys are 'algo' or 'algo/tag', where tag is the folder name under data/<env>/<algo>/.
 
     python plotting/plot_rewards.py --env Pendulum-v1 \\
         --include sac ppo ly lsac/min_lie_mu0.1 lsac/regularization_mu0.0005 lsac/structural \\
         --labels SAC PPO LY "LSAC min Lie" "LSAC regularized" "LSAC structural" --name best
 
-Output goes to plots/sweeps/<env>/<algo>_<method>.{png,pdf} and plots/<env>[_<name>].{png,pdf}.
+Output goes to plots/sweeps/<env>/<algo>_<method>.{png,pdf}, plots/<env>_best.{png,pdf} and
+plots/<env>[_<name>].{png,pdf}.
 """
 import argparse
 import glob
@@ -44,8 +51,9 @@ ALGO_NAMES = {
     "clean_ly_subset": "Subset LY",
 }
 ALGO_ORDER = ["clean_sac", "clean_ppo", "clean_ly", "clean_lsac", "clean_lppo", "clean_ly_subset"]
-SWEEP_METHODS = ["min_lie", "regularization"]
-METHOD_NAMES = {"min_lie": "min Lie", "regularization": "regularized"}
+SWEEP_METHODS = ["min_lie", "regularization", "structural"]
+METHOD_NAMES = {"min_lie": "min Lie", "regularization": "regularized", "structural": "structural"}
+BASELINE_ALGOS = ["clean_ppo"]  # --best mode: unscaled algorithms shown alongside the best scaled runs
 
 # Fixed categorical order (validated palette, light mode). Series past 8 reuse hues with dashed lines.
 COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
@@ -210,12 +218,14 @@ def plot_sweeps(env, args):
     for algo in algos:
         for method in methods:
             swept = [k for k in runs if k.startswith(f"{algo}/") and split_tag(k.partition("/")[2])[0] == method]
-            swept = [k for k in swept if split_tag(k.partition("/")[2])[1] is not None]
+            # structural has no mu: it is compared against the unscaled run only
+            swept = [k for k in swept if (split_tag(k.partition("/")[2])[1] is not None) != (method == "structural")]
             if not swept:
                 continue
             found = True
-            swept.sort(key=lambda k: split_tag(k.partition("/")[2])[1])
-            entries = [(k, f"μ={split_tag(k.partition('/')[2])[1]:g}") for k in swept]
+            swept.sort(key=lambda k: split_tag(k.partition("/")[2])[1] or 0)
+            entries = [(k, tag_label(k.partition("/")[2]) if method == "structural"
+                        else f"μ={split_tag(k.partition('/')[2])[1]:g}") for k in swept]
             if f"{algo}/none" in runs:
                 entries.insert(0, (f"{algo}/none", "μ=0 (none)"))
             title = f"{env}: {ALGO_NAMES.get(algo, algo)} {METHOD_NAMES.get(method, method)} sweep"
@@ -223,6 +233,46 @@ def plot_sweeps(env, args):
             make_plot(runs, entries, title, out_base, args, sort_table=True)
     if not found:
         print(f"[{env}] no parameter sweeps found")
+
+
+def final_reward(seed_dirs, args):
+    """Mean reward over the last 10% of the plotted step range (same number as the tables)."""
+    result = aggregate(seed_dirs, args.window, args.max_steps)
+    if result is None:
+        return None
+    _, mean, _, _ = result
+    return mean[-max(1, len(mean) // 10):].mean()
+
+
+def plot_best(env, args):
+    """For every Lyapunov algorithm, pick its best scaled run (any method, any mu) by final reward,
+    and plot those against the unscaled baselines (PPO by default)."""
+    runs = discover_runs(env)
+    baselines = [normalize_key(b) for b in args.baselines] if args.baselines else BASELINE_ALGOS
+    algos = sorted({k.partition("/")[0] for k in runs if "/" in k}, key=run_sort_key)
+    if args.algo:
+        algos = [a for a in algos if a in {normalize_key(a2) for a2 in args.algo}]
+
+    entries = []
+    print(f"[{env}] best scaled run per algorithm (final reward, last 10% of steps):")
+    for algo in algos:
+        scaled = [k for k in runs if k.startswith(algo + "/") and k.partition("/")[2] not in ("", "none")]
+        scored = [(final_reward(runs[k], args), k) for k in scaled]
+        scored = sorted((s for s in scored if s[0] is not None), reverse=True)
+        if not scored:
+            continue
+        for rank, (score, key) in enumerate(scored):
+            print(f"  {'*' if rank == 0 else ' '} {run_label(key):<40} {score:10.2f}   {key}")
+        best = scored[0][1]
+        entries.append((best, run_label(best)))
+    for base in baselines:
+        if base in runs:
+            entries.append((base, run_label(base)))
+    print()
+    if not entries:
+        print(f"[{env}] nothing to compare")
+        return
+    make_plot(runs, entries, f"{env}: best scaled run per algorithm", os.path.join(args.out, f"{env}_best"), args)
 
 
 def plot_comparison(env, args):
@@ -252,8 +302,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--env", nargs="*", help="environment ids to plot (default: every folder in data/)")
     parser.add_argument("--sweep", action="store_true", help="plot parameter sweeps instead of a comparison")
-    parser.add_argument("--algo", nargs="*", help="sweep mode: algorithms to plot, e.g. lsac lppo (default: all)")
-    parser.add_argument("--method", nargs="*", choices=SWEEP_METHODS, help="sweep mode: methods (default: both)")
+    parser.add_argument("--best", action="store_true",
+                        help="plot each algorithm's best scaled run (picked by final reward) against the baselines")
+    parser.add_argument("--baselines", nargs="*", help="best mode: unscaled algorithms to include (default: ppo)")
+    parser.add_argument("--algo", nargs="*", help="sweep/best mode: algorithms to plot, e.g. lsac lppo (default: all)")
+    parser.add_argument("--method", nargs="*", choices=SWEEP_METHODS, help="sweep mode: methods (default: all three)")
     parser.add_argument(
         "--include",
         nargs="*",
@@ -274,6 +327,8 @@ def main():
     for env in envs:
         if args.sweep:
             plot_sweeps(env, args)
+        elif args.best:
+            plot_best(env, args)
         else:
             plot_comparison(env, args)
 
