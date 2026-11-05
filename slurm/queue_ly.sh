@@ -2,7 +2,7 @@
 #SBATCH --mem=8G
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=04:00:00
+#SBATCH --time=06:00:00
 #SBATCH --mail-user=ssg57@sfu.ca
 #SBATCH --mail-type=END
 #SBATCH --account=def-danielac
