@@ -1,12 +1,11 @@
 #!/bin/bash
-#SBATCH --mem=32G
+#SBATCH --mem=8G
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=16
-#SBATCH --time=10:00:0
+#SBATCH --cpus-per-task=4
+#SBATCH --time=04:00:00
 #SBATCH --mail-user=ssg57@sfu.ca
 #SBATCH --mail-type=END
 #SBATCH --account=def-danielac
-#SBATCH --gpus-per-node=1
 #SBATCH --array=1-10
 
 # Usage: sbatch slurm/queue_lsac.sh <pendulum|double> <scaling_method> [scaling_mu]
