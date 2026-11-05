@@ -421,7 +421,7 @@ if __name__ == "__main__":
 
                 with torch.no_grad():
                     l_lie_pi = ((lyapunov(b_next_obs[mb_inds], eq_state=eq_obs) - lyapunov(b_obs[mb_inds], eq_state=eq_obs)) / dt).view(-1)
-                mb_advantages = (1 - args.lyapunov_weight) * b_advantages[mb_inds] + args.lyapunov_weight * torch.clamp(
+                mb_advantages = b_advantages[mb_inds] + args.lyapunov_weight * torch.clamp(
                     -(l_lie_pi + margin), max=0.0
                 )
                 if args.norm_adv:
